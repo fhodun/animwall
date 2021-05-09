@@ -48,6 +48,7 @@ wrapped()
     -nf \
     -b \
     -un \
+    -ov \
     -- nice -n "${__nice_value}" mpv \
     -wid WID "$1" \
     --no-osc \
