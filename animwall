@@ -21,26 +21,23 @@
 # Lowest priority, super nice (make this number smaller to increase priority, cannot go below 0)
 __nice_value=19
 
-# PID list, do not touch
-__pids=""
-
 # $1 wallpaper
 # $2 geometry
 # $3 screen
-wrapped()
+start_wallpaper()
 {
-  printf -- '[ANIMWALL]: Launching...\n'
-  printf -- '    Wallpaper: "%s"\n' "$1"
-  printf -- '    Geometry:  "%s"\n' "$2"
-  printf -- '    Screen:    "%s"\n' "$3"
-
-  # Options "-un" only used by xwinwrap-git
-  # Will not work with shantz-xwinwrap-git
-
-  # Uses deprecated -wid option instead of --wid because
-  # xwinwrap will only interpret the WID as window id if it is
-  # on its own, attaching it with equals breaks it.
-  exec nice -n "${__nice_value}" xwinwrap \
+    printf -- '[ANIMWALL]: Launching...\n'
+    printf -- '    Wallpaper: "%s"\n' "$1"
+    printf -- '    Geometry:  "%s"\n' "$2"
+    printf -- '    Screen:    "%s"\n' "$3"
+    
+    # Options "-un" only used by xwinwrap-git
+    # Will not work with shantz-xwinwrap-git
+    
+    # Uses deprecated -wid option instead of --wid because
+    # xwinwrap will only interpret the WID as window id if it is
+    # on its own, attaching it with equals breaks it.
+    exec nice -n "${__nice_value}" xwinwrap \
     -g "$2" \
     -ni \
     -st \
@@ -60,62 +57,69 @@ wrapped()
     --no-keepaspect \
     --no-input-default-bindings \
     --hwdec \
-    --stop-screensaver=no
+    --stop-screensaver=no \
+    &
 }
 
-cancel()
+stop()
 {
-  # Kill runaway pids
-  for p in ${__pids}; do
-    p="$(printf -- "%s" "${p}" \
-      | sed 's/^[[:blank:]]*//' | sed 's/[[:blank:]]*$//')"
-    if [ -n "${p}" ]; then
-      kill "${p}" > /dev/null 2>&1
+    local prompt="$1"
+    echo "This subcommand kills all mpv processes, do you want to proceed?"
+    if [ $# -eq 0 ] || [ $prompt == "true"]; then
+        read -p "[Y]es/[N]o: " yn
+        case $yn in
+            [Yy]*) pkill mpv ; echo "Stopped" ; return 0 ;;
+            [Nn]*) echo "Aborted" ; return  1 ;;
+        esac
+        elif [ $prompt == "false" ]; then
+        pkill mpv
+        return 0
+    else
+        return 1
     fi
-  done
-
-  # Reset terminal in case it bugs out
-  reset
 }
 
-main()
+restart()
 {
-  if ! command -v mpv > /dev/null; then
-    printf -- 'You must have "mpv" installed.\n'
-    return 1
-  fi
+    stop false
+    start
+}
 
-  if ! command -v xwinwrap > /dev/null; then
-    printf -- 'You must have "xwinwrap" installed.\n'
-    return 1
-  fi
-
-  if ! command -v nice > /dev/null; then
-    printf -- 'You must have "nice" installed.\n'
-    return 1
-  fi
-
-  # Trap return signals
-  trap cancel INT TERM
-
-  # Check for config file
-  animwall_configs=""
-  config_dir="${XDG_CONFIG_DIR:-"${HOME}/.config"}/animwall"
-  config_location="${config_dir}/animwall.conf"
-  if [ -f "${config_location}" ] && [ -r "${config_location}" ]; then
-    printf -- 'Reading animwall.conf from %s\n' "${config_location}"
-    animwall_configs="$(cat -- "${config_location}")"
-  else
-    printf -- 'Could not find animwall.conf file at %s\n' "${config_location}"
-    printf -- 'Creating example file...\n'
-
-    # Make directory
-    mkdir -p "${config_dir}" || {
-      printf -- 'Failed to make configuration directory at: %s' "${config_dir}"
-      return 1
-    }
-
-    # Make config file
+start()
+{
+    if ! command -v mpv > /dev/null; then
+        printf -- 'You must have "mpv" installed.\n'
+        return 1
+    fi
+    
+    if ! command -v xwinwrap > /dev/null; then
+        printf -- 'You must have "xwinwrap" installed.\n'
+        return 1
+    fi
+    
+    if ! command -v nice > /dev/null; then
+        printf -- 'You must have "nice" installed.\n'
+        return 1
+    fi
+    
+    # Check for config file
+    animwall_configs=""
+    config_dir="${XDG_CONFIG_DIR:-"${HOME}/.config"}/animwall"
+    config_location="${config_dir}/animwall.conf"
+    if [ -f "${config_location}" ] && [ -r "${config_location}" ]; then
+        # printf -- 'Reading animwall.conf from %s\n' "${config_location}"
+        animwall_configs="$(cat -- "${config_location}")"
+    else
+        printf -- 'Could not find animwall.conf file at %s\n' "${config_location}"
+        printf -- 'Creating example file...\n'
+        
+        # Make directory
+        mkdir -p "${config_dir}" || {
+            printf -- 'Failed to make configuration directory at: %s' "${config_dir}"
+            return 1
+        }
+        
+        # Make config file
     printf -- '%s\n' "$(cat << EOF
 # This is the configuration file for animwall
 #
@@ -123,29 +127,23 @@ main()
 # <FILE>:<WIDTHxHEIGHT+X+Y>:<SCREEN>
 #
 # Lines beginning with # are ignored
-~/wallpapers/example_1.mp4:1920x1080+0+0:0
-~/pictures/example2.jpg:2560x1440+1920+0:1
+~/Pictures/wallpapers/example.mp4:1920x1080+0+0:0
+~/Pictures/wallpapers/example.mp4:1920x1080+1920+0:1
 EOF
-)" > "${config_location}"
+    )" > "${config_location}"
     return 1
-  fi
+fi
 
-  if [ -z "${animwall_configs}" ]; then
+if [ -z "${animwall_configs}" ]; then
     printf -- 'Animwall config was empty!\n'
     return 1
-  fi
-
-  # Prepare IFS
-  # Split by lines only instead of whitespace
-  old_ifs="${IFS}"
-  IFS='
-'
+fi
 
   # Parse config file
   for config in ${animwall_configs}; do
     case "${config}" in
       \#*)
-        printf -- 'Ignore line with comment: %s\n' "${config}"
+        # printf -- 'Ignore line with comment: %s\n' "${config}"
         continue
         ;;
       *)
@@ -162,20 +160,19 @@ EOF
     wallpaper="$(printf -- "%s" "${wallpaper}" | sed "s|^\~|\$HOME|g" | sed "s|^\$HOME|${HOME}|g" )"
 
     if [ -n "${wallpaper}" ] && [ -n "${geometry}" ] && [ -n "${screen}" ]; then
-      wrapped "${wallpaper}" "${geometry}" "${screen}" &
-      __pids="$! ${__pids}"
-    else
-      if [ -z "${wallpaper}" ]; then
-        printf -- 'Missing wallpaper path in config: %s\n' "${config}"
-      fi
+      start_wallpaper "${wallpaper}" "${geometry}" "${screen}"
+    # else
+    #   if [ -z "${wallpaper}" ]; then
+        # printf -- 'Missing wallpaper path in config: %s\n' "${config}"
+    #   fi
 
-      if [ -z "${geometry}" ]; then
-        printf -- 'Missing geometry in config: %s\n' "${config}"
-      fi
+    #   if [ -z "${geometry}" ]; then
+        # printf -- 'Missing geometry in config: %s\n' "${config}"
+    #   fi
 
-      if [ -z "${screen}" ]; then
-        printf -- 'Missing screen in config: %s\n' "${config}"
-      fi
+    #   if [ -z "${screen}" ]; then
+        # printf -- 'Missing screen in config: %s\n' "${config}"
+    #   fi
     fi
 
     unset split_config
@@ -184,17 +181,6 @@ EOF
     unset screen
     unset config
   done
-
-  # Reset IFS
-  IFS="${old_ifs}"
-
-  # Wait for all wrapped processes to finish
-  #
-  # Do not quote so that this will split into a list, instead of a single,
-  # space separated input
-  # shellcheck disable=SC2086
-  wait ${__pids}
-  cancel
 }
 
-main "$@"
+"$@"

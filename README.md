@@ -4,12 +4,12 @@ An orchestrator using xwinwrap and mpv to launch animated/gif desktop wallpapers
 
 ## What is this for
 
-For fun.
+For fun and because I like animated wallpapers.
 
 ## Usage
 
 ```
-$ animwall
+$ animwall start
 ```
 
 Ok, fine it's not that simple.
@@ -35,6 +35,12 @@ edit the script to lower this number. It may increase CPU usage.
 
 This script is dumb. It will not auto stop when a window covers the wallpaper
 or anything fancy like that.
+
+## Subcommands
+
+* start
+* stop
+* restart
 
 ## License
 
